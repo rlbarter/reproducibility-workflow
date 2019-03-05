@@ -65,20 +65,25 @@ project_title/
 ```
 project
 │   README.md
-│   file001.txt    
-│
-└───folder1
-│   │   file011.txt
-│   │   file012.txt
-│   │
-│   └───subfolder1
-│       │   file111.txt
-│       │   file112.txt
-│       │   ...
-│   
-└───folder2
-    │   file021.txt
-    │   file022.txt
+└───documents/
+│       meeting_notes.md
+│       data_dictionary.md
+└───data/
+│       └───raw_data/
+│           │   data_orig.csv
+│       └───processed_data/
+│           │   data_clean.csv
+└───code/
+│       └───exploration/
+│           │   01_data_exploration.Rmd
+│           │   02_model_results.Rmd
+│       └───scripts/
+│           │   01_do_clean_data.R
+│           │   02_do_model_data.R
+│           └───functions/
+│               │   01_funs_clean_data.R
+│               │   02_funs_model_data.R
+
 ```
 
 ## Resources
