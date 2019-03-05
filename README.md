@@ -12,6 +12,7 @@ An example of a reproducible project that follows this workflow lives in the `pr
 
 ## Project Structure
 
+The project will typically consist of the following subdirectories:
 
 ### Data
 
