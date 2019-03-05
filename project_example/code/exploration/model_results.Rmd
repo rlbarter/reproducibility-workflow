@@ -1,0 +1,395 @@
+---
+title: "Exploration of raw data"
+author: "Rebecca Barter"
+date: "7/18/2018"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(knitr)
+library(data.table)
+library(superheat)
+library(bit64)
+```
+
+# Summary of findings
+
+The number of SSI incidents (numerators) matches the number of rows per year in the SSI file. The total surgical encounters (denominators) does matches the number of rows per year in the surgical encounters (share) file. 
+
+ENCNUMS are unique to patients (despite a comment from an earlier meeting that they might not be).
+
+## Missing data concerns
+
+- **Surgical data**: we are missing surgical encounters data for 4 SSI patients.
+
+- We are missing some chronic conditions and labs data for individual surgeries (i.e. within 2 months of the surgery).
+
+## Understanding encounter IDs
+
+- ADMISSION_ENCNUMs do seem to be unique to patients (i.e. there are no ADMISSION_ENCNUMs in either the SSI data or the surgical encounters data that is shared by more than one patient)
+
+# Files outline
+
+The goal of this project is to predict surgical site infections (SSI) using data collected at UC Davis.
+
+In this document I take a look at the datsets provided and summarise what is contained in them. 
+
+The parent folder contains two data sub-folders: `SSI cases 2014-17` and `Surgical encounters`. 
+
+- `SSI cases 2014-17/` contains a single Excel file called `Q340954_SURG_SSI_IC_trimmed_7.13.2018.xlsx` and documents all the incidents of SSI since 2014
+
+- `Surgical encounters/` contains a subfolder for each year from `2014/` to `2017/`, each of which contains 6 Excel files: `Labs`, `Meds`, `Previous_dx`, `Prob_list`, `share_7`, and `Vitals`. Each file contains information portaining to *all* surgeries performed since 2014 (regardless of whether or not there was a SSI).
+
+```{r, eval = FALSE}
+SSI cases 2014-17/
+  Q340954_SURG_SSI_IC_trimmed_7.13.2018.xlsx
+Surgical encounters/
+  2014/
+    Q340954_denom_2014_Labs.xlsx
+    Q340954_denom_2014_Meds.xlsx
+    Q340954_denom_2014_Previous_dx.xlsx
+    Q340954_denom_2014_Prob_List.xlsx
+    Q340954_denom_2014_share_7.13.2018.xls
+    Q340954_denom_2014_Vitals.xlsx
+  2015/
+    Q340954_denom_2015_Labs.xlsx
+    Q340954_denom_2015_Meds.xlsx
+    Q340954_denom_2015_Previous_dx.xlsx
+    Q340954_denom_2015_Prob_list.xlsx
+    Q340954_denom_2015_share_7.13.2018.xlsx
+    Q340954_denom_2015_Vitals.xlsx
+  2016/
+    Q340954_denom_2016_Labs.xlsx
+    Q340954_denom_2016_Meds.xlsx
+    Q340954_denom_2016_Previous_dx.xlsx
+    Q340954_denom_2016_Problem_list.xlsx
+    Q340954_denom_2016_share_7.13.2018.xls
+    Q340954_denom_2016_Vitals.xlsx
+  2017/
+    Q340954_denom_2017_Labs.xlsx
+    Q340954_denom_2017_Meds
+    Q340954_denom_2017_Previous_dx.xlsx
+    Q340954_denom_2017_Problem_List.xlsx
+    Q340954_denom_2017_share_7.13.2018.xls
+    Q340954_denom_2017_Vitals_2
+    Q340954_denom_2017_Vitals.xlsx
+```
+
+
+The surgical encounters data is combined across all years by running the R script `01_combine_year_separated_data.R`. Note that 
+
+- the name of the file "Prob_list.xlsx" changes after 2015 to "Problem_list.xlsx"
+
+- in 2017 the "Vitals" data is split across two files 
+
+- the data in each of these excel files is spread across multiple sheets
+
+
+# Examining the contents of each data file
+
+
+## The SSI cases file
+
+The file contained in the `SSI cases 2014-17` contains 936 records on 139 variables.
+
+```{r load-ssi, echo = FALSE, results = "hide"}
+# load in the SSI cases 2014-17 file
+ssi <- readxl::read_xlsx("../../../data/SSI cases 2014-17/Q340954_SURG_SSI_IC_trimmed_7.13.2018.xlsx")
+dim(ssi)
+```
+
+The number of records/rows, unique PATNUMs, unique CASE_IDs, and unique ADMISSION_ENCNUMs are printed in the table below. 
+
+```{r records-ssi, echo = FALSE}
+ssi <- ssi %>% 
+  mutate(date = dmy_hms(PROCEDURE_DATE_SET),
+         year = year(date)) 
+ssi %>% group_by(year) %>%
+  summarise(total_records = n(), 
+            unique_patnum = length(unique(PATNUM)),
+            unique_admission_encnum = length(unique(ADMISSION_ENCNUM)),
+            unique_case_id = length(unique(CASE_ID))) %>%
+  kable
+```
+
+It looks like the data goes all the way back to 2009. The number of records/rows from 2014 and 2017 matches what was provided by Prabhu and Parul, however, these corresponds to far fewer unique case IDs in the years before 2015. 
+
+There are slight differences between these totals (with CASE_ID being more or less meaningless before 2015), but my understanding is that 
+
+- `PATNUM` identifies a unique patient and
+
+- `ADMISSION_ENCNUM` identifies a unique surgery (there seems to be a couple of patients who had more than one surgeries).
+
+These variables are described in the**Denominator Data Dictionary SSI Project** file.
+
+## Surgical encounters files
+
+Next, I will load in all of the **lab**, **meds**, **diagnoses**, **chronic conditions** and **vitals** files. The data from separate years was combined into individual csv files using the script `01_combine_year_separated_data.R`.
+
+```{r load-surgical-encounter-data, echo = FALSE, warning = FALSE, message = FALSE}
+# load in al surgical data files: all years
+combined_data_path <- "../../../data/processed_data/01_combined_data/"
+labs <- fread(paste0(combined_data_path, 
+                        "combined_labs.csv")) %>%
+  as.data.frame
+meds <- fread(paste0(combined_data_path, 
+                        "combined_meds.csv")) %>%
+  as.data.frame
+chronic_conditions <- fread(paste0(combined_data_path, 
+                                      "combined_chronic_conditions.csv")) %>%
+  as.data.frame
+diagnoses <- fread(paste0(combined_data_path, 
+                             "combined_diagnoses.csv")) %>%
+  as.data.frame
+vitals <- fread(paste0(combined_data_path, 
+                          "combined_vitals.csv")) %>%
+  as.data.frame
+surgical_encounters <- fread(paste0(combined_data_path, 
+                                       "combined_surgical_encounters.csv")) %>%
+  as.data.frame
+```
+
+
+
+```{r explore-surgical-encounter-size, echo = FALSE}
+# identify number of unique PATNUMs and ENCNUMS
+lab_counts <- labs %>% group_by(year) %>% 
+  summarise(file = "labs", 
+            unique_labs_patnums = length(unique(PATNUM)),
+            unique_labs_encounters = length(unique(ENCNUM)),
+            rows = n()) 
+med_counts <- meds %>% group_by(year) %>% 
+  summarise(file = "meds",
+            unique_meds_patnums = length(unique(PATNUM)),
+            unique_meds_encounters = length(unique(ENCNUM)), 
+            rows = n())
+chronic_counts <- chronic_conditions %>% group_by(year) %>% 
+  summarise(unique_chronic_conditions_patnums = length(unique(PATNUM)),
+            unique_chronic_conditions_encounters = NA,
+            rows = n()) 
+diagnosis_counts <- diagnoses %>% group_by(year) %>% 
+  summarise(unique_diagnoses_patnums = length(unique(PATNUM)),
+            unique_diagnoses_encounters = NA,
+            rows = n())
+vitals_counts <- vitals %>% group_by(year) %>% 
+  summarise(unique_vitals_patnums = length(unique(PATNUM)),
+            unique_vitals_encounters = length(unique(ENCNUM)),
+            rows = n())
+encounters_counts <- surgical_encounters %>% group_by(year) %>%
+  summarise(unique_vitals_patnums = length(unique(PATNUM)),
+            unique_vitals_encounters = length(unique(ADMISSION_ENCNUM)),
+            rows = n()) 
+```
+
+The table below shows the **unique patient id (PATNUM) counts** for each dataset.
+```{r echo = FALSE}
+# combine patnum counts into a table
+patnum_counts <- rbind(c("labs", lab_counts$unique_labs_patnums),
+      c("meds", med_counts$unique_meds_patnums),
+      c("chronic conditions", chronic_counts$unique_chronic_conditions_patnums),
+      c("diagnosis", diagnosis_counts$unique_diagnoses_patnums),
+      c("vitals", vitals_counts$unique_vitals_patnums),
+      c("surgical encounters", encounters_counts$unique_vitals_patnums))
+colnames(patnum_counts) <- c("file", 2014:2017)
+kable(patnum_counts)
+```
+
+The table below shows the **unique encounter id (ENCNUM) counts** for each dataset.
+
+```{r echo = FALSE}
+# combine encnums into a table
+encnum_counts <- rbind(c("labs", lab_counts$unique_labs_encounters),
+      c("meds", med_counts$unique_meds_encounters),
+      c("chronic conditions", chronic_counts$unique_chronic_conditions_encounters),
+      c("diagnosis", diagnosis_counts$unique_diagnoses_encounters),
+      c("vitals", vitals_counts$unique_vitals_encounters),
+      c("surgical encounters", encounters_counts$unique_vitals_encounters))
+colnames(encnum_counts) <- c("file", 2014:2017)
+kable(encnum_counts)
+```
+
+The table below shows the **number of rows** for each dataset.
+
+```{r echo = FALSE}
+# combine row counts into a table
+encnum_counts <- rbind(c("labs", lab_counts$rows),
+      c("meds", med_counts$rows),
+      c("chronic conditions", chronic_counts$rows),
+      c("diagnosis", diagnosis_counts$rows),
+      c("vitals", vitals_counts$rows),
+      c("surgical encounters", encounters_counts$rows))
+colnames(encnum_counts) <- c("file", 2014:2017)
+kable(encnum_counts)
+```
+
+The total number of "denominators" provided to us by our collaborators matches the total number of **rows** from the surgical encounters (share) file. 
+
+```{r, echo = FALSE}
+# print reported numbers from collaborators in a table
+tribble(~reported, ~"2014", ~"2015", ~"2016", ~"2017",
+        "denominators", 10133, 9711, 10838, 8492,
+        "SSI", 120, 155, 133, 119) %>% 
+  kable
+```
+
+
+# Do we have all expected data available
+
+## Surgical encounters
+
+Note that there are 4 patients with SSI during 2014-2017 are not included in the surgical encounters file. 
+
+```{r echo = FALSE}
+# identifyi patients with SSI that are not included in surgical encounters
+ssi %>% filter(year(date) >= 2014,
+               !(PATNUM %in% surgical_encounters$PATNUM)) %>% 
+  select(PATNUM) %>%
+  kable
+```
+
+
+## Do all patients listed in surgical encounters have other data available?
+
+The surgical encounters file ranges from January 2014 to October 2017. Each month, around 700 patients had surgeries. While our medication, diagnosis and chronic conditions data is almost complete for these patients, less than 5-10% of patients who are missing lab data within 2 months of the surgery and 10-15% of patients who are missing chronic conditions data within 2 months of the surgery (although this data is available for these patients further from the surgery).
+
+The plot below shows the proportion of available data (within 2 months of the surgical encounter) across all datasets by month. The first column shows the total number of patients with surgeries.
+
+
+```{r echo = FALSE}
+# identify all unique surgical encounters PATNUMS
+surgical_encounters_patnums <- surgical_encounters %>% 
+  mutate(surgery_date = dmy_hms(PROCDATE_SET),
+         surgery_month = round_date(surgery_date, unit = "month")) %>%
+  distinct(surgery_month, PATNUM)
+# identify all unique labs PATNUMS
+labs_patnums <- labs %>% 
+  mutate(lab_date = dmy_hms(SPECIMN_TAKEN_TIME_SET),
+         lab_month = round_date(lab_date, unit = "month")) %>%
+  distinct(lab_month, PATNUM)
+# identify all unique meds PATNUMS
+meds_patnums <- meds %>% 
+  mutate(meds_date = dmy_hms(ORDERING_DATE_SET),
+         meds_month = round_date(meds_date, unit = "month")) %>%
+  distinct(meds_month, PATNUM)
+# identify all unique diagnoses PATNUMS
+diagnoses_patnums <- diagnoses %>% 
+  mutate(diagnoses_date = dmy_hms(ADMIT_DATE_SET),
+         diagnoses_month = round_date(diagnoses_date, unit = "month")) %>%
+  distinct(diagnoses_month, PATNUM)
+# identify all unique vitals PATNUMS
+vitals_patnums <- vitals %>% 
+  mutate(vitals_date = dmy_hms(RECORDED_TIME_SET),
+         vitals_month = round_date(vitals_date, unit = "month")) %>%
+  distinct(vitals_month, PATNUM)
+# identify all unique chronic conditions PATNUMS 
+chronic_conditions_patnums <- chronic_conditions %>% 
+  mutate(conditions_date = dmy_hms(NOTED_DATE_SET),
+         conditions_month = round_date(conditions_date, unit = "month")) %>%
+  distinct(conditions_month, PATNUM)
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+# Sorry - this code chunk is terrible and doesn't follow the rules!!!!
+# identify the proportion of PATNUMs that have recorded data across different 
+# datasets within 30 days of the surgical encounter
+available_data <- surgical_encounters_patnums %>%
+  # for each month...
+  group_by(surgery_month) %>%
+  summarise(
+    # total number of patients
+    `total\npatients` = length(unique(PATNUM)),
+    # number of patients with lab data within 30 days of surgery
+    `lab\ndata` = sum(unique(PATNUM) %in% 
+                       pull(filter(labs_patnums,
+                                   abs(difftime(lab_month, surgery_month, units = "days")) <= 60),
+                            PATNUM)) / `total\npatients`,
+    # number of patients with med data within 30 days of surgery
+    `med\ndata` = sum(unique(PATNUM) %in% 
+                       pull(filter(meds_patnums, 
+                                   abs(difftime(meds_month, surgery_month, units = "days")) <= 60),
+                            PATNUM)) / `total\npatients`,
+    # number of patients with vitals data within 30 days of surgery
+    `vitals\ndata` = sum(unique(PATNUM) %in% 
+                          pull(filter(vitals_patnums, 
+                                      abs(difftime(vitals_month, surgery_month, units = "days")) <= 60),
+                               PATNUM)) / `total\npatients`,
+    # number of patients with diagnosis data within 30 days of surgery
+    `diagnoses\ndata` = sum(unique(PATNUM) %in% 
+                             pull(filter(diagnoses_patnums, 
+                                         abs(difftime(diagnoses_month, surgery_month, units = "days")) <= 60),
+                                  PATNUM)) / `total\npatients`,
+    # number of patients with chronic conditions data within 30 days of surgery
+    `chronic\nconditions \ndata` = sum(unique(PATNUM) %in% 
+                                      pull(filter(chronic_conditions_patnums, 
+                                                  abs(difftime(conditions_month, surgery_month, units = "days")) <= 60),
+                                           PATNUM)) / `total\npatients`) %>%
+  as.data.frame
+```
+
+
+```{r echo = FALSE, message=FALSE, fig.height = 14, fig.width = 8}
+# make a heatmap of the available data
+# put data into matrix and remove surgery month
+available_data_mat <- available_data %>% 
+  select(-surgery_month) %>%
+  as.matrix
+# get colors for heatmap
+available_data_colors <- available_data_mat
+# set first column to 1 (all data available)
+available_data_colors[, 1] <- 1 
+# set the rownames to be the month
+rownames(available_data_colors) <- as.character(available_data$surgery_month)
+
+# define a matrix consisting of the text that will overlay the heatmps
+# convert the proportion fo data available to a percentage (text)
+available_data_text <- map_df(as.data.frame(available_data_colors), 
+                              function(x) {
+                                # record as text
+                                paste0(round(100 * x), "%")
+                                })
+# replace the first column with the number of unique patients
+available_data_text[, 1] <- available_data_mat[, 1]
+available_data_text <- as.matrix(available_data_text)
+# plot matrix
+superheat(available_data_colors, 
+          heat.pal = c("pink", "white"),
+          X.text = available_data_text)
+```
+
+
+# ENCNUMs 
+
+
+Note that `ENCNUM` does not refer only to surgeries. For instance, if, for each patient, we idenitfy the `ADMISSON_ENCNUM`s in the surgical_encounters file with the `ENCNUM`s in the labs file, we find that there is a single `ADMISSION_ENCNUM` recorded for each patient in the surgical outcomes file, but many, many `ENCNUM`s recorded for each patient in the lab file. Moreover, the lab results don't even necessarily always correspond to a surgery (the final column is `FALSE` if the surgery `ADMISSION_ENCNUM` is not included in the list of `ENCNUM`s from the lab file).
+
+```{r echo = FALSE}
+surgical_encounters %>% sample_n(20) %>%
+  left_join(select(labs_clean, ENCNUM, PATNUM), by = "PATNUM") %>%
+  group_by(PATNUM) %>%
+  summarise(unique_surgical_encnums = length(unique(ADMISSION_ENCNUM)),
+            unique_lab_encnums = length(unique(ENCNUM)),
+            matching_encnums = sum(ADMISSION_ENCNUM %in% ENCNUM) > 0) %>%
+  kable
+```
+
+
+
+Even within the surgical encounters (denominators) file, there are often multiple entries for the same encounter for when multiple sureries are performed at once. The table below shows the number of encounter numbers with 1, 2, 3, ..., 13 rows (individual procedures). 15% of all recorded encounters (i.e. nonmissing ENCNUM) consist of more than one procedure.
+
+
+```{r echo = FALSE}
+surgical_encounters_orig %>% 
+  group_by(ADMISSION_ENCNUM) %>%
+  summarise(n_rows = n()) %>%
+  ungroup() %>%
+  count(n_rows) %>%
+  rename(number_of_encounters = n) %>%
+  kable
+```
+
+

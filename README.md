@@ -30,7 +30,7 @@ There are three types of code documents:
 
 1. **Exploration notebooks** (.Rmd, .ipynb): R Markdown or Jupyter notebook files that are used to produce figures and explanatory files that contain figures and explanations of data cleaning steps and results of analyses. These are the files that an external viewer would find useful to understand your data and analysis.
 
-Scripts that are run sequentially are numbered accordingly. An example of a project structure is shown below. Note that the functions folder is nested as a subdirectory of the scripts folder which contains the a
+Scripts that are run sequentially are numbered accordingly. An example of a project structure is shown below. Note that in the example below the functions folder is nested as a subdirectory of the scripts folder which contains the actionable scripts. This makes sense when the functions are only called in the actionable scripts (but not in the exploration notebooks). 
 
 
 ```
