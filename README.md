@@ -45,14 +45,14 @@ project_title/
   |   ├── exploration/
   |     ├── 01_eda.Rmd
   |     └── 02_model_results.Rmd
-	|   └── scripts/
+	|   ├── scripts/
   |     ├── 01_do_clean_data.R
   |     ├── 02_do_model.R
   |     └── functions/
   |       ├── 01_funs_clean.R
   |       └── 02_funs_model.R
 	├── data/
-	│   ├── raw_data/
+	|   ├── raw_data/
   |     ├──
 	|     └──
 	│   └── processed_data/
@@ -61,6 +61,25 @@ project_title/
 	└── README.md
 ```
 
+
+```
+project
+│   README.md
+│   file001.txt    
+│
+└───folder1
+│   │   file011.txt
+│   │   file012.txt
+│   │
+│   └───subfolder1
+│       │   file111.txt
+│       │   file112.txt
+│       │   ...
+│   
+└───folder2
+    │   file021.txt
+    │   file022.txt
+```
 
 ## Resources
 
