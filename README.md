@@ -85,3 +85,5 @@ Code should follow an appropriate style guide:
 ## Acknowledgements
 
 Thanks very much to Ciera Martinez for sharing her [project workflow](https://github.com/DiscoveryDNA/team_neural_network/blob/master/data_managment.md).
+
+I'd also like to acknowledge the *Meta Research and Best Practices* working group (formerly the *Reproducility working group*) at the Berkeley Institute for Data Science (BIDS) for insightful discussions that have helped me form my own workflow over the years.
