@@ -71,7 +71,7 @@ All filenames are always lowercase and use underscores to separate words.
 Code should follow an appropriate style guide:
 
 - R: [Tidyverse Style Guide](https://style.tidyverse.org/) (based on the R Google Style Guide)
-- Python: [Google Style Guide](https://google.github.io/styleguide/pyguide.html)
+- Python: [Google Style Guide](https://google.github.io/styleguide/pyguide.html) or [PEP 8 Style Guide](https://www.python.org/dev/peps/pep-0008/)
 
 
 ## Resources
